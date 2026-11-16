@@ -1,0 +1,18 @@
+# gamma の ROS 2 launch を起動時に上げる systemd のシステムサービス（/etc/systemd/system に置く）。
+# bridge はシリアルが無いと落ちるので Restart=always で待つ。ログは journalctl -u gamma_launch
+[Unit]
+Description=gamma ROS 2 launch (rabbits_bringup gamma.launch.py)
+After=network.target bluetooth.target
+
+[Service]
+User=kota0314
+Group=kota0314
+WorkingDirectory=/home/kota0314
+ExecStart=/usr/local/bin/gamma_launch.sh
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,2 @@
+# Pi に置くスクリプトとユニットは Windows の作業ツリーでも LF にする（CRLF だと bash と systemd が読めない）
+pi/* text eol=lf

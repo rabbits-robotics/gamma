@@ -24,16 +24,36 @@ ATTRACTS 向け対戦ロボット gamma（beta の次世代機）の機体管理
 | 偽ファーム | [rabbits_sim](https://github.com/rabbits-robotics/rabbits_sim) | 実機なしで bridge から先を動かす |
 | メカ CAD | 本リポジトリの Releases | 節目ごとに SolidWorks 一式を zip で添付。CERN-OHL-P-2.0。ローカルは `mech_ws/gamma_proto3`（ロール軸なしの版。proto1 / proto2 は旧案） |
 
-## 環境構築（Raspberry Pi 5 側）💭
+## 環境構築（Raspberry Pi 5 側）
+
+beta の Pi 5（Ubuntu 24.04 arm64 + ROS 2 Jazzy、NVMe SSD 起動、ユーザー `kota0314`、ホスト名 `raspberry-pi-5-8`、有線 LAN は 192.168.10.110 固定）をそのまま使う（2026-11-16）。beta の `~/attracts_ws` は残してあり、記録は [beta の README](https://github.com/rabbits-robotics/beta)。
 
 ```bash
-git clone https://github.com/rabbits-robotics/rabbits_ws.git
-cd rabbits_ws
-vcs import src < src/rabbits_bringup/gamma.repos   # 先に rabbits_bringup だけ取る
-colcon build
+# 1. ワークスペース（~/rabbits_ws。9 パッケージで約 6 分）
+git clone git@github.com:rabbits-robotics/rabbits_ws.git ~/rabbits_ws
+cd ~/rabbits_ws
+vcs import src < default_package_list.repos      # gamma の全パッケージ（rabbits_bringup の gamma.repos でも可）
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# 2. .bashrc（attracts_ws の行を置き換える）
+source $HOME/rabbits_ws/install/setup.bash
+export ROS_DOMAIN_ID=42
+
+# 3. ゲームパッド（Onefun の PS4 互換機、Bluetooth。Share + PS 長押しでペアリングモード）
+bluetoothctl --timeout 15 scan on; bluetoothctl devices        # 「Wireless Controller」の MAC を探す
+bluetoothctl pair <MAC>; bluetoothctl trust <MAC>; bluetoothctl connect <MAC>   # /dev/input/js0 ができる
+# 番号は専用ドライバ（hid-playstation）の並び = rabbits_interface の onefun_ps4_native.yaml（PC の WSL2 とは違う）
+
+# 4. 自動起動（この README の隣の pi/ を Pi にコピーして sudo で入れる。beta の ros2_launch.service は無効化、cloud-init も無効化）
+scp -r pi kota0314@raspberry-pi-5-8:/tmp/ && ssh kota0314@raspberry-pi-5-8 sudo bash /tmp/pi/install.sh
 ```
 
-`gamma.repos` は rabbits_bringup にある（今は全パッケージ `main`。実機で動いた時点で `vcs export --exact` でコミット固定し、rabcl は gamma_turret_fw の submodule と同じコミットを指す）。Pi 5 の OS は Ubuntu 24.04（arm64）+ ROS 2 Jazzy で、beta と同じ構成。セットアップ手順は Pi を載せる段階で rabbits_ws の README に書く。
+`pi/` の中身: `gamma_launch.sh`（`ros2 launch rabbits_bringup gamma.launch.py device:=/dev/serial/by-id/usb-FTDI_… input:=gamepad gamepad:=onefun_ps4_native rviz:=false`）、`gamma_launch.service`（起動時に上記を `kota0314` で実行、`Restart=always` 3 秒。bridge がシリアルを開けないと launch ごと終わって再起動するので、FT234X を挿せば数秒でつながる）、`install.sh`。ログは `journalctl -u gamma_launch -f`、止めるなら `sudo systemctl stop gamma_launch`。
+
+決めごと: `ROS_DOMAIN_ID` は 42（PC と同じ）。試合中は無線禁止なので Wi-Fi は `rfkill block wlan`（beta のまま、再起動後も保持）。cloud-init は `apt upgrade` 後の再起動で SSH のホスト鍵を作り直すことがあったので無効化（`/etc/cloud/cloud-init.disabled`）。P4 への USB 給電はしない（電源系統の節）。`usb_max_current_enable` は不要（Pi の USB から取るのは USB-UART 変換 2 枚だけ）。
+
+`gamma.repos`（rabbits_bringup）は今は全パッケージ `main`。実機で動いた時点で `vcs export --exact` でコミット固定し、rabcl は gamma_turret_fw の submodule と同じコミットを指す。
 
 ## システム構成
 
